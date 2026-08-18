@@ -348,15 +348,15 @@ app.post('/dashboard', (req, res) => {
   } else {
     files.forEach(file => {
       const isVideo = file.toLowerCase().endsWith('.mp4') || file.toLowerCase().endsWith('.mov');
-      mediaHtml += \`
+      mediaHtml += `
         <div class="card">
-          \${isVideo 
-            ? \`<video src="/media/\${file}" controls preload="metadata"></video>\`
-            : \`<img src="/media/\${file}" />\`
+          ${isVideo 
+            ? `<video src="/media/${file}" controls preload="metadata"></video>`
+            : `<img src="/media/${file}" />`
           }
-          <div class="filename">\${file}</div>
+          <div class="filename">${file}</div>
         </div>
-      \`;
+      `;
     });
   }
 
@@ -381,10 +381,10 @@ app.post('/dashboard', (req, res) => {
     <body>
       <div class="header">
         <h2>📋 วีดีโอและรูปภาพที่รอคิวโพสต์</h2>
-        <p style="color: #A99A86;">มีทั้งหมด <b>\${files.length}</b> ไฟล์ในคิว</p>
+        <p style="color: #A99A86;">มีทั้งหมด <b>${files.length}</b> ไฟล์ในคิว</p>
       </div>
       <div class="grid">
-        \${mediaHtml}
+        ${mediaHtml}
       </div>
       <div style="text-align: center;">
         <a href="/" class="btn-back">⬅️ กลับหน้าแรก</a>
