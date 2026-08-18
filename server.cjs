@@ -36,8 +36,12 @@ const upload = multer({ storage: storage });
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+// Serve the 'New' directory so we can preview queued files
+app.use('/media', express.static(NEW_DIR));
+
 // Basic HTML UI for uploading
 app.get('/', (req, res) => {
+  const queuedFiles = fs.readdirSync(NEW_DIR).filter(f => !f.startsWith('.')).length;
   res.send(`
     <!DOCTYPE html>
     <html lang="th">
@@ -190,6 +194,11 @@ app.get('/', (req, res) => {
           <button type="submit" id="submitBtn">🚀 อัปโหลดเข้าคิว</button>
         </form>
 
+        <div style="margin-top: 20px; font-size: 14px; color: #D4AF37;">
+          <p>📌 ตอนนี้มีรูป/วีดีโอ รอโพสต์อยู่ <b>${queuedFiles}</b> ไฟล์</p>
+          <a href="/dashboard" style="color: #A99A86; text-decoration: underline; cursor: pointer;">📋 เข้าไปดูวีดีโอที่อัปโหลดไว้</a>
+        </div>
+
         <div id="progressContainer">
           <div class="progress-bg">
             <div class="progress-bar" id="progressBar"></div>
@@ -294,6 +303,95 @@ app.get('/force-post', async (req, res) => {
   } catch (e) {
     res.send('<h2 style="color:red;text-align:center;margin-top:50px;">❌ บังคับโพสต์ล้มเหลว</h2>');
   }
+});
+
+// Dashboard UI
+app.get('/dashboard', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>ระบบจัดการคิวโพสต์</title>
+      <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+      <style>
+        body { font-family: 'Prompt', sans-serif; background: linear-gradient(135deg, #1A110D 0%, #2C1A14 100%); color: #fff; padding: 20px; text-align: center; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .container { width: 100%; max-width: 400px; background: rgba(255, 255, 255, 0.05); padding: 40px; border-radius: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); backdrop-filter: blur(10px); border: 1px solid rgba(212, 175, 55, 0.2); }
+        h2 { color: #D4AF37; margin-top: 0; }
+        input { width: 100%; padding: 14px; margin: 20px 0; background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 10px; box-sizing: border-box; font-family: 'Prompt', sans-serif;}
+        button { background: linear-gradient(90deg, #D4AF37, #F3E5AB); color: #1A110D; border: none; padding: 14px; border-radius: 10px; width: 100%; cursor: pointer; font-size: 16px; font-weight: bold; font-family: 'Prompt', sans-serif;}
+        a { color: #A99A86; display: block; margin-top: 20px; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>🔒 ใส่รหัสผ่านเพื่อดูคิวโพสต์</h2>
+        <form action="/dashboard" method="POST">
+          <input type="password" name="pin" placeholder="รหัส PIN 4 หลัก" required autofocus />
+          <button type="submit">🔓 เข้าสู่ระบบ</button>
+        </form>
+        <a href="/">⬅️ กลับหน้าอัปโหลด</a>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/dashboard', (req, res) => {
+  if (req.body.pin !== '9999') return res.status(401).send('<h2 style="color:red;text-align:center;margin-top:50px;">❌ รหัสผ่านไม่ถูกต้อง!</h2><br><center><a href="/dashboard">กลับไปลองใหม่</a></center>');
+  
+  const files = fs.readdirSync(NEW_DIR).filter(f => !f.startsWith('.'));
+  
+  let mediaHtml = '';
+  if (files.length === 0) {
+    mediaHtml = '<p style="color:#A99A86;">ตอนนี้ไม่มีไฟล์ค้างอยู่ในคิวเลยครับ 🎉</p>';
+  } else {
+    files.forEach(file => {
+      const isVideo = file.toLowerCase().endsWith('.mp4') || file.toLowerCase().endsWith('.mov');
+      mediaHtml += \`
+        <div class="card">
+          \${isVideo 
+            ? \`<video src="/media/\${file}" controls preload="metadata"></video>\`
+            : \`<img src="/media/\${file}" />\`
+          }
+          <div class="filename">\${file}</div>
+        </div>
+      \`;
+    });
+  }
+
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="th">
+    <head>
+      <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>รายการคิวรอโพสต์</title>
+      <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+      <style>
+        body { font-family: 'Prompt', sans-serif; background: #1A110D; color: #fff; padding: 20px; margin: 0; }
+        .header { text-align: center; margin-bottom: 30px; }
+        h2 { color: #D4AF37; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .card { background: #2C1A14; border-radius: 12px; overflow: hidden; border: 1px solid rgba(212, 175, 55, 0.2); }
+        .card img, .card video { width: 100%; height: 150px; object-fit: cover; display: block; }
+        .filename { padding: 10px; font-size: 11px; color: #A99A86; word-break: break-all; text-align: center; }
+        .btn-back { display: inline-block; margin-top: 30px; background: #333; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>📋 วีดีโอและรูปภาพที่รอคิวโพสต์</h2>
+        <p style="color: #A99A86;">มีทั้งหมด <b>\${files.length}</b> ไฟล์ในคิว</p>
+      </div>
+      <div class="grid">
+        \${mediaHtml}
+      </div>
+      <div style="text-align: center;">
+        <a href="/" class="btn-back">⬅️ กลับหน้าแรก</a>
+      </div>
+    </body>
+    </html>
+  `);
 });
 
 app.listen(PORT, () => {
