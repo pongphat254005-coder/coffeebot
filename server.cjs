@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Load the scheduler so cron jobs start running!
-require('./scheduler.cjs');
+const { processQueue } = require('./scheduler.cjs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -284,6 +284,16 @@ app.post('/upload', upload.array('files', 10), (req, res) => {
   }
 
   res.send('<h2 style="color:green;text-align:center;margin-top:50px;">✅ อัปโหลดสำเร็จ!</h2><br><center><a href="/">อัปโหลดเพิ่ม</a></center>');
+});
+
+app.get('/force-post', async (req, res) => {
+  try {
+    res.send('<h2 style="color:green;text-align:center;margin-top:50px;">🚀 กำลังสั่งให้ AI เริ่มแต่งแคปชั่นและโพสต์...<br>กรุณารอประมาณ 1-2 นาที แล้วเช็คที่หน้าเพจเฟซบุ๊กได้เลยครับ!</h2><br><center><a href="/">กลับหน้าหลัก</a></center>');
+    // run async in background
+    processQueue(false).catch(e => console.error("Force post error:", e));
+  } catch (e) {
+    res.send('<h2 style="color:red;text-align:center;margin-top:50px;">❌ บังคับโพสต์ล้มเหลว</h2>');
+  }
 });
 
 app.listen(PORT, () => {
