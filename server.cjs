@@ -355,6 +355,11 @@ app.post('/dashboard', (req, res) => {
             : `<img src="/media/${file}" />`
           }
           <div class="filename">${file}</div>
+          <form action="/delete-file" method="POST" style="padding: 10px; margin: 0; text-align: center; border-top: 1px solid rgba(255,255,255,0.1);">
+            <input type="hidden" name="pin" value="${req.body.pin}" />
+            <input type="hidden" name="filename" value="${file}" />
+            <button type="submit" style="width: 100%; padding: 8px; font-size: 12px; background: #ff4757; color: white; border: none; border-radius: 6px; cursor: pointer;" onclick="return confirm('คุณแน่ใจหรือไม่ว่าต้องการลบไฟล์นี้?')">🗑 ลบไฟล์นี้</button>
+          </form>
         </div>
       `;
     });
@@ -371,9 +376,9 @@ app.post('/dashboard', (req, res) => {
         body { font-family: 'Prompt', sans-serif; background: #1A110D; color: #fff; padding: 20px; margin: 0; }
         .header { text-align: center; margin-bottom: 30px; }
         h2 { color: #D4AF37; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
         .card { background: #2C1A14; border-radius: 12px; overflow: hidden; border: 1px solid rgba(212, 175, 55, 0.2); }
-        .card img, .card video { width: 100%; height: 150px; object-fit: cover; display: block; }
+        .card img, .card video { width: 100%; height: 250px; object-fit: contain; display: block; background: #000; }
         .filename { padding: 10px; font-size: 11px; color: #A99A86; word-break: break-all; text-align: center; }
         .btn-back { display: inline-block; margin-top: 30px; background: #333; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; }
       </style>
@@ -392,6 +397,20 @@ app.post('/dashboard', (req, res) => {
     </body>
     </html>
   `);
+});
+
+app.post('/delete-file', (req, res) => {
+  if (req.body.pin !== '9999') return res.status(401).send('Unauthorized');
+  const filename = req.body.filename;
+  if (!filename || filename.includes('/') || filename.includes('\\') || filename.startsWith('.')) {
+    return res.status(400).send('Invalid filename');
+  }
+  const filepath = path.join(NEW_DIR, filename);
+  if (fs.existsSync(filepath)) {
+    fs.unlinkSync(filepath);
+  }
+  // Redirect back to dashboard preserving the POST payload (HTTP 307)
+  res.redirect(307, '/dashboard');
 });
 
 app.listen(PORT, () => {
