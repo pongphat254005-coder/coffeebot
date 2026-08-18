@@ -186,7 +186,7 @@ app.get('/', (req, res) => {
         
         <form id="uploadForm">
           <input type="password" name="pin" id="pin" placeholder="รหัสผ่าน (PIN)" required />
-          <input type="file" name="file" id="file" accept="image/*,video/*" required />
+          <input type="file" name="files" id="file" accept="image/*,video/*" multiple required />
           <button type="submit" id="submitBtn">🚀 อัปโหลดเข้าคิว</button>
         </form>
 
@@ -220,8 +220,8 @@ app.get('/', (req, res) => {
           const pin = document.getElementById('pin').value;
           const fileInput = document.getElementById('file');
           
-          if (!pin || !fileInput.files[0]) {
-            statusMsg.innerHTML = '<span style="color:#ff6b6b">กรุณากรอกรหัสผ่านและเลือกไฟล์</span>';
+          if (!pin || fileInput.files.length === 0) {
+            statusMsg.innerHTML = '<span style="color:#ff6b6b">กรุณากรอกรหัสผ่านและเลือกไฟล์อย่างน้อย 1 ไฟล์</span>';
             return;
           }
 
@@ -245,7 +245,7 @@ app.get('/', (req, res) => {
           
           xhr.onload = function() {
             if (xhr.status === 200) {
-              statusMsg.innerHTML = '<span style="color:#4ade80">✅ อัปโหลดสำเร็จ! บอทได้รับไฟล์แล้ว</span>';
+              statusMsg.innerHTML = '<span style="color:#4ade80">✅ อัปโหลดสำเร็จ! บอทได้รับ ' + fileInput.files.length + ' ไฟล์แล้ว</span>';
               form.reset();
             } else if (xhr.status === 401) {
               statusMsg.innerHTML = '<span style="color:#ff6b6b">❌ รหัสผ่านไม่ถูกต้อง!</span>';
@@ -253,7 +253,7 @@ app.get('/', (req, res) => {
               statusMsg.innerHTML = '<span style="color:#ff6b6b">❌ เกิดข้อผิดพลาดในการอัปโหลด</span>';
             }
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '🚀 อัปโหลดไฟล์ถัดไป';
+            submitBtn.innerHTML = '🚀 อัปโหลดไฟล์เพิ่ม';
             setTimeout(() => { progressContainer.style.display = 'none'; }, 5000);
           };
           
@@ -272,16 +272,18 @@ app.get('/', (req, res) => {
   `);
 });
 
-// Handle upload
-app.post('/upload', upload.single('file'), (req, res) => {
+// Handle upload (multiple files up to 10 at once)
+app.post('/upload', upload.array('files', 10), (req, res) => {
   const pin = req.body.pin;
   // Simple password protection
   if (pin !== '9999') {
-    if (req.file) fs.unlinkSync(req.file.path); // Delete unauthorized file
+    if (req.files) {
+      req.files.forEach(file => fs.unlinkSync(file.path)); // Delete unauthorized files
+    }
     return res.status(401).send('<h2 style="color:red;text-align:center;margin-top:50px;">❌ รหัสผ่านไม่ถูกต้อง!</h2><br><center><a href="/">กลับไปลองใหม่</a></center>');
   }
 
-  res.send('<h2 style="color:green;text-align:center;margin-top:50px;">✅ อัปโหลดสำเร็จ! บอทได้รับไฟล์แล้วครับ</h2><br><center><a href="/">อัปโหลดเพิ่ม</a></center>');
+  res.send('<h2 style="color:green;text-align:center;margin-top:50px;">✅ อัปโหลดสำเร็จ!</h2><br><center><a href="/">อัปโหลดเพิ่ม</a></center>');
 });
 
 app.listen(PORT, () => {
