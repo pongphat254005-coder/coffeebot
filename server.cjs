@@ -275,18 +275,22 @@ app.post('/dashboard', async (req, res) => {
   let files = [];
   try {
     const fbRes = await axios.get(`https://graph.facebook.com/v19.0/${env.FACEBOOK_PAGE_ID}/scheduled_posts`, {
-      params: { access_token: env.FACEBOOK_ACCESS_TOKEN, fields: 'id,message,scheduled_publish_time' }
+      params: { access_token: env.FACEBOOK_ACCESS_TOKEN, fields: 'id,message,scheduled_publish_time,attachments{media_type,media}', limit: 100 }
     });
     if (fbRes.data && fbRes.data.data) {
-      files = fbRes.data.data;
+      files = fbRes.data.data.sort((a,b) => {
+        const tA = new Date(a.scheduled_publish_time).getTime();
+        const tB = new Date(b.scheduled_publish_time).getTime();
+        return tA - tB;
+      });
     }
-  } catch (e) {
-    console.error("Error fetching dashboard posts:", e.message);
+  } catch(e) {
+    console.error("Dashboard FB API Error:", e.response ? e.response.data : e.message);
   }
-  
+
   let mediaHtml = '';
   if (files.length === 0) {
-    mediaHtml = '<p style="color:#A99A86; text-align:center;">ตอนนี้ไม่มีโพสต์ที่ถูกตั้งเวลาล่วงหน้าบนเพจครับ 🎉</p>';
+    mediaHtml = '<p style="text-align:center; color:#A99A86; grid-column: 1 / -1;">ไม่มีคิวโพสต์ล่วงหน้าบน Facebook ในขณะนี้</p>';
   } else {
     // Sort ascending
     files.sort((a,b) => {
@@ -301,8 +305,23 @@ app.post('/dashboard', async (req, res) => {
           : new Date(post.scheduled_publish_time).getTime();
       const d = new Date(parsedT).toLocaleString('th-TH');
       
+      let previewHtml = '';
+      if (post.attachments && post.attachments.data && post.attachments.data.length > 0) {
+        const media = post.attachments.data[0].media;
+        const mediaType = post.attachments.data[0].media_type;
+        // Facebook API returns the image thumbnail in media.image for both photos and videos!
+        if (media && media.image && media.image.src) {
+           previewHtml = `<img src="${media.image.src}" style="width: 100%; height: 200px; object-fit: cover; border-bottom: 1px solid rgba(212, 175, 55, 0.2);" />`;
+        }
+      }
+      
+      if (!previewHtml) {
+        previewHtml = `<div style="width: 100%; height: 200px; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; color: #A99A86; border-bottom: 1px solid rgba(212, 175, 55, 0.2);">[รอการประมวลผลวิดีโอจาก Facebook]</div>`;
+      }
+      
       mediaHtml += `
         <div class="card">
+          ${previewHtml}
           <div style="background: rgba(212, 175, 55, 0.1); padding: 15px; border-bottom: 1px solid rgba(212, 175, 55, 0.2);">
             <div style="color: #D4AF37; font-weight: bold; font-size: 16px;">คิวที่ ${i+1}</div>
             <div style="color: #4cd137; font-size: 14px;">⏰ เวลาโพสต์: ${d}</div>
