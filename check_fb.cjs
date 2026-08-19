@@ -4,7 +4,7 @@ const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')).mcpServers['soci
 
 async function check() {
   try {
-    const res = await fetch(`https://graph.facebook.com/v19.0/${config.FACEBOOK_PAGE_ID}/scheduled_posts?access_token=${config.FACEBOOK_ACCESS_TOKEN}&fields=id,message,scheduled_publish_time,is_published`);
+    const res = await fetch(`https://graph.facebook.com/v19.0/${config.FACEBOOK_PAGE_ID}/scheduled_posts?access_token=${config.FACEBOOK_ACCESS_TOKEN}&fields=id,message,scheduled_publish_time,is_published&limit=100`);
     const data = await res.json();
     console.log("SCHEDULED:", JSON.stringify(data, null, 2));
     

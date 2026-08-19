@@ -59,6 +59,9 @@ app.get('/', (req, res) => {
         button { background: linear-gradient(90deg, #D4AF37, #F3E5AB); color: #1A110D; border: none; padding: 14px; border-radius: 10px; width: 100%; cursor: pointer; font-size: 16px; font-weight: bold; font-family: 'Prompt', sans-serif; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); transition: transform 0.2s; }
         button:active { transform: scale(0.98); }
         .footer { margin-top: 30px; font-size: 12px; color: #666; }
+        .progress-container { display: none; margin-top: 20px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; height: 25px; width: 100%; border: 1px solid rgba(212, 175, 55, 0.3); }
+        .progress-bar { background: linear-gradient(90deg, #4cd137, #44bd32); height: 100%; width: 0%; transition: width 0.3s; }
+        #progressText { margin-top: 10px; color: #4cd137; font-weight: bold; font-size: 14px; display: none; }
       </style>
     </head>
     <body>
@@ -66,15 +69,20 @@ app.get('/', (req, res) => {
         <h1>✨ AI Coffee Bot ✨</h1>
         <p>อัปโหลดรูปภาพหรือวีดีโอได้สูงสุด 100 ไฟล์ เพื่อส่งเข้าคิวโพสต์อัตโนมัติ (ตั้งเวลาล่วงหน้าบนเพจเฟซบุ๊ก)</p>
         
-        <form action="/" method="POST" enctype="multipart/form-data" id="uploadForm">
-          <input type="password" name="pin" id="pin" placeholder="รหัสผ่าน (PIN)" required />
+        <form id="uploadForm">
+          <input type="password" id="pin" placeholder="รหัสผ่าน (PIN)" required />
           <label class="file-label" id="fileLabel">
             📸 กดเพื่อเลือกไฟล์ (รูป/วีดีโอ)...
-            <input type="file" name="files" id="fileInput" accept="image/*,video/*" multiple required />
+            <input type="file" id="fileInput" accept="image/*,video/*" multiple required />
           </label>
           <div id="fileCount" style="margin-bottom: 20px; color: #A99A86; font-size: 14px;"></div>
           <button type="submit" id="submitBtn">🚀 อัปโหลดและเริ่มตั้งเวลา</button>
         </form>
+
+        <div class="progress-container" id="progressContainer">
+          <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div id="progressText">อัปโหลด: 0%</div>
 
         <div style="margin-top: 20px; font-size: 14px; color: #D4AF37;">
           <a href="/dashboard" style="color: #A99A86; text-decoration: underline; cursor: pointer;">📋 เข้าไปดูคิวโพสต์ที่ตั้งเวลาไว้แล้ว</a>
@@ -91,10 +99,50 @@ app.get('/', (req, res) => {
             document.getElementById('fileLabel').style.color = '#4cd137';
           }
         });
-        document.getElementById('uploadForm').addEventListener('submit', function() {
-          document.getElementById('submitBtn').innerText = "กำลังอัปโหลด กรุณารอสักครู่...";
-          document.getElementById('submitBtn').style.opacity = "0.7";
-          document.getElementById('submitBtn').style.pointerEvents = "none";
+
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+          e.preventDefault();
+          const files = document.getElementById('fileInput').files;
+          const pin = document.getElementById('pin').value;
+          if(files.length === 0) return alert('กรุณาเลือกไฟล์');
+          
+          const formData = new FormData();
+          formData.append('pin', pin);
+          for(let i=0; i<files.length; i++) {
+            formData.append('files', files[i]);
+          }
+
+          document.getElementById('submitBtn').style.display = 'none';
+          document.getElementById('progressContainer').style.display = 'block';
+          document.getElementById('progressText').style.display = 'block';
+
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/upload', true);
+          
+          xhr.upload.onprogress = function(e) {
+            if (e.lengthComputable) {
+              const percent = Math.round((e.loaded / e.total) * 100);
+              document.getElementById('progressBar').style.width = percent + '%';
+              document.getElementById('progressText').innerText = 'อัปโหลด: ' + percent + '%';
+            }
+          };
+
+          xhr.onload = function() {
+            if (xhr.status === 200) {
+              const res = JSON.parse(xhr.responseText);
+              window.location.href = '/processing?total=' + res.total;
+            } else {
+              alert('❌ เกิดข้อผิดพลาด: รหัสผ่านอาจจะไม่ถูกต้อง');
+              window.location.reload();
+            }
+          };
+          
+          xhr.onerror = function() {
+            alert('การเชื่อมต่อล้มเหลว');
+            window.location.reload();
+          };
+
+          xhr.send(formData);
         });
       </script>
     </body>
@@ -107,17 +155,19 @@ app.get('/status', (req, res) => {
   res.json({ count });
 });
 
-// Process Uploads & Show Processing Modal
-app.post('/', upload.array('files', 100), (req, res) => {
+// Process Uploads (AJAX endpoint)
+app.post('/upload', upload.array('files', 100), (req, res) => {
   if (req.body.pin !== '9999') {
-    // Delete unauthorized files
     if (req.files) req.files.forEach(f => { if(fs.existsSync(f.path)) fs.unlinkSync(f.path); });
-    return res.status(401).send('<h2 style="color:red;text-align:center;">❌ รหัสผ่านไม่ถูกต้อง!</h2><br><center><a href="/">กลับไปลองใหม่</a></center>');
+    return res.status(401).json({ error: 'PIN_INVALID' });
   }
   
-  // Trigger processing asynchronously in the background
   processQueue().catch(e => console.error("Process Queue Error:", e));
+  res.json({ status: 'success', total: req.files.length });
+});
 
+app.get('/processing', (req, res) => {
+  const total = parseInt(req.query.total) || 1;
   res.send(`
     <!DOCTYPE html>
     <html lang="th">
@@ -129,8 +179,10 @@ app.post('/', upload.array('files', 100), (req, res) => {
         body { font-family: 'Prompt', sans-serif; background: #1A110D; color: #fff; padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
         .spinner { border: 4px solid rgba(255,255,255,0.1); border-left-color: #D4AF37; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .warning { color: #ff4757; font-weight: bold; background: rgba(255, 71, 87, 0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(255, 71, 87, 0.3); margin-top: 20px; }
-        .count-box { background: rgba(212, 175, 55, 0.1); border: 1px solid #D4AF37; padding: 20px; border-radius: 15px; margin-top: 20px; font-size: 24px; color: #D4AF37; font-weight: bold; }
+        .warning { color: #ff4757; font-weight: bold; background: rgba(255, 71, 87, 0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(255, 71, 87, 0.3); margin-top: 20px; max-width: 450px; }
+        .count-box { background: rgba(212, 175, 55, 0.1); border: 1px solid #D4AF37; padding: 20px; border-radius: 15px; margin-top: 20px; font-size: 20px; color: #D4AF37; font-weight: bold; width: 100%; max-width: 400px; box-sizing: border-box; }
+        .proc-progress-container { margin-top: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; height: 25px; width: 100%; border: 1px solid rgba(212, 175, 55, 0.3); }
+        .proc-progress-bar { background: linear-gradient(90deg, #D4AF37, #F3E5AB); height: 100%; width: 0%; transition: width 0.5s; }
       </style>
     </head>
     <body>
@@ -138,7 +190,11 @@ app.post('/', upload.array('files', 100), (req, res) => {
       <h2>⏳ AI กำลังดูวีดีโอ แต่งแคปชั่น และตั้งเวลาโพสต์บนเฟซบุ๊ก...</h2>
       
       <div class="count-box">
-        เหลืออีก <span id="queueCount">${req.files.length}</span> ไฟล์ในคิวประมวลผล
+        กำลังจัดการไฟล์: <span id="doneCount">0</span> / ${total}
+        <div class="proc-progress-container">
+          <div class="proc-progress-bar" id="procProgressBar"></div>
+        </div>
+        <div style="font-size:14px; margin-top:10px; color: #fff;">ประมวลผลสำเร็จ <span id="percentText">0</span>%</div>
       </div>
 
       <div class="warning">
@@ -147,15 +203,25 @@ app.post('/', upload.array('files', 100), (req, res) => {
       </div>
 
       <script>
+        const total = ${total};
         setInterval(() => {
           fetch('/status').then(r=>r.json()).then(data => {
-            document.getElementById('queueCount').innerText = data.count;
-            if (data.count === 0) {
+            const left = data.count;
+            const done = total - left;
+            let percent = Math.round((done / total) * 100);
+            if(percent < 0) percent = 0;
+            if(percent > 100) percent = 100;
+
+            document.getElementById('doneCount').innerText = done;
+            document.getElementById('procProgressBar').style.width = percent + '%';
+            document.getElementById('percentText').innerText = percent;
+
+            if (left === 0) {
               alert('✅ เสร็จสิ้น! ทุกไฟล์ถูกส่งไปตั้งเวลาล่วงหน้าบน Facebook สำเร็จ! ระบบปลอดภัย 100% ปิดหน้านี้ได้เลยครับ');
               window.location.href = '/dashboard';
             }
           });
-        }, 5000); // Polling every 5 seconds keeps the server awake!
+        }, 5000);
       </script>
     </body>
     </html>
