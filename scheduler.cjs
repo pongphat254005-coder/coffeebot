@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+process.env.TZ = 'Asia/Bangkok';
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
