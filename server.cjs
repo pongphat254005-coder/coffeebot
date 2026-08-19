@@ -100,49 +100,59 @@ app.get('/', (req, res) => {
           }
         });
 
-        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
           e.preventDefault();
-          const files = document.getElementById('fileInput').files;
           const pin = document.getElementById('pin').value;
-          if(files.length === 0) return alert('กรุณาเลือกไฟล์');
-          
-          const formData = new FormData();
-          formData.append('pin', pin);
-          for(let i=0; i<files.length; i++) {
-            formData.append('files', files[i]);
-          }
+          const files = document.getElementById('fileInput').files;
+          if(files.length === 0) { alert('กรุณาเลือกไฟล์ก่อน'); return; }
 
           document.getElementById('submitBtn').style.display = 'none';
           document.getElementById('progressContainer').style.display = 'block';
           document.getElementById('progressText').style.display = 'block';
 
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', '/upload', true);
-          
-          xhr.upload.onprogress = function(e) {
-            if (e.lengthComputable) {
-              const percent = Math.round((e.loaded / e.total) * 100);
-              document.getElementById('progressBar').style.width = percent + '%';
-              document.getElementById('progressText').innerText = 'อัปโหลด: ' + percent + '%';
-            }
-          };
+          let successCount = 0;
+          for (let i = 0; i < files.length; i++) {
+            const formData = new FormData();
+            formData.append('pin', pin);
+            formData.append('files', files[i]);
 
-          xhr.onload = function() {
-            if (xhr.status === 200) {
-              const res = JSON.parse(xhr.responseText);
-              window.location.href = '/processing?total=' + res.total;
-            } else {
-              alert('❌ เกิดข้อผิดพลาด: รหัสผ่านอาจจะไม่ถูกต้อง');
+            try {
+              await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/upload', true);
+                
+                xhr.upload.onprogress = function(e) {
+                  if (e.lengthComputable) {
+                    const filePercent = (e.loaded / e.total);
+                    const overallPercent = Math.round(((i + filePercent) / files.length) * 100);
+                    document.getElementById('progressBar').style.width = overallPercent + '%';
+                    document.getElementById('progressText').innerText = 'อัปโหลด: ' + overallPercent + '% (' + (i+1) + '/' + files.length + ')';
+                  }
+                };
+
+                xhr.onload = function() {
+                  if (xhr.status === 200) {
+                    successCount++;
+                    resolve();
+                  } else {
+                    reject(new Error('รหัสผ่านอาจจะไม่ถูกต้อง หรือเซิร์ฟเวอร์ขัดข้อง'));
+                  }
+                };
+                
+                xhr.onerror = function() {
+                  reject(new Error('การเชื่อมต่อล้มเหลว ลองใหม่อีกครั้งครับ'));
+                };
+
+                xhr.send(formData);
+              });
+            } catch (err) {
+              alert('❌ เกิดข้อผิดพลาดไฟล์ที่ ' + (i+1) + ': ' + err.message);
               window.location.reload();
+              return;
             }
-          };
+          }
           
-          xhr.onerror = function() {
-            alert('การเชื่อมต่อล้มเหลว');
-            window.location.reload();
-          };
-
-          xhr.send(formData);
+          window.location.href = '/processing?total=' + successCount;
         });
       </script>
     </body>
