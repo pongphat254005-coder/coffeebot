@@ -75,24 +75,18 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
   const env = getConfig();
   if (!env.GEMINI_API_KEY) throw new Error('No GEMINI_API_KEY found in config.');
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-  const fileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
   const prompt = isPromoTime 
-    ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงดูรูปภาพหรือวีดีโอนี้ แล้วแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
-    : "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' จงดูรูปภาพหรือวีดีโอนี้ แล้วแต่งแคปชั่นสั้นๆ ให้ความรู้เกี่ยวกับกาแฟ เครื่องดื่ม หรือมุกตลกที่เกี่ยวกับรูปนี้ เพื่อสร้างปฏิสัมพันธ์กับลูกเพจ ใช้ภาษาเป็นกันเอง (ห้ามใส่แฮชแท็ก)";
+    ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
+    : "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' จงแต่งแคปชั่นสั้นๆ ให้ความรู้เกี่ยวกับกาแฟ เครื่องดื่ม หรือมุกตลก เพื่อสร้างปฏิสัมพันธ์กับลูกเพจ ใช้ภาษาเป็นกันเอง (ห้ามใส่แฮชแท็ก)";
 
   try {
     let result;
     if (isVideo) {
-      const uploadResponse = await fileManager.uploadFile(filePath, { mimeType: 'video/mp4', displayName: path.basename(filePath) });
-      let fileState = await fileManager.getFile(uploadResponse.file.name);
-      while (fileState.state === 'PROCESSING') {
-        await new Promise((r) => setTimeout(r, 5000));
-        fileState = await fileManager.getFile(uploadResponse.file.name);
-      }
-      if (fileState.state === 'FAILED') throw new Error('Video processing failed.');
-      result = await model.generateContent([prompt, { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } }]);
+      // To prevent Out-Of-Memory (OOM) crashes on Render's 512MB free tier,
+      // we skip uploading the heavy video file to Gemini and just ask for a caption.
+      result = await model.generateContent([prompt]);
     } else {
       const ext = path.extname(filePath).toLowerCase();
       let mimeType = 'image/jpeg';
