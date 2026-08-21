@@ -181,28 +181,36 @@ async function processQueue() {
       try {
         if (isVideo) {
           const fileSize = fs.statSync(filePath).size;
-          let startRes = await axios.post(`https://graph.facebook.com/v19.0/${env.FACEBOOK_PAGE_ID}/videos`, null, {
-            params: { access_token: env.FACEBOOK_ACCESS_TOKEN, upload_phase: 'start', file_size: fileSize }
-          });
-          let { upload_session_id, start_offset, end_offset } = startRes.data;
           
-          while (start_offset < fileSize) {
-            const chunkStream = fs.createReadStream(filePath, { start: parseInt(start_offset), end: parseInt(end_offset) - 1 });
-            const tForm = new FormData();
-            tForm.append('access_token', env.FACEBOOK_ACCESS_TOKEN);
-            tForm.append('upload_phase', 'transfer');
-            tForm.append('upload_session_id', upload_session_id);
-            tForm.append('start_offset', start_offset.toString());
-            tForm.append('video_file_chunk', chunkStream);
-            
-            let tRes = await axios.post(`https://graph.facebook.com/v19.0/${env.FACEBOOK_PAGE_ID}/videos`, tForm, {
-              headers: tForm.getHeaders(), maxContentLength: Infinity, maxBodyLength: Infinity
-            });
-            start_offset = tRes.data.start_offset;
-            end_offset = tRes.data.end_offset;
-          }
-          await axios.post(`https://graph.facebook.com/v19.0/${env.FACEBOOK_PAGE_ID}/videos`, null, {
-            params: { access_token: env.FACEBOOK_ACCESS_TOKEN, upload_phase: 'finish', upload_session_id: upload_session_id, description: finalCaption, published: false, scheduled_publish_time: scheduledTimestamp }
+          // 1. Initialize Reel Upload
+          let startRes = await axios.post(`https://graph.facebook.com/v19.0/${env.FACEBOOK_PAGE_ID}/video_reels`, null, {
+            params: { access_token: env.FACEBOOK_ACCESS_TOKEN, upload_phase: 'start' }
+          });
+          const { video_id, upload_url } = startRes.data;
+          
+          // 2. Transfer binary data
+          const videoStream = fs.createReadStream(filePath);
+          await axios.post(upload_url, videoStream, {
+            headers: {
+              'Authorization': `OAuth ${env.FACEBOOK_ACCESS_TOKEN}`,
+              'offset': '0',
+              'file_size': fileSize.toString(),
+              'Content-Type': 'application/octet-stream'
+            },
+            maxContentLength: Infinity, 
+            maxBodyLength: Infinity
+          });
+          
+          // 3. Finish and Schedule Reel
+          await axios.post(`https://graph.facebook.com/v19.0/${env.FACEBOOK_PAGE_ID}/video_reels`, null, {
+            params: { 
+              access_token: env.FACEBOOK_ACCESS_TOKEN, 
+              upload_phase: 'finish', 
+              video_id: video_id, 
+              video_state: 'SCHEDULED',
+              description: finalCaption, 
+              scheduled_publish_time: scheduledTimestamp 
+            }
           });
         } else {
           const form = new FormData();
