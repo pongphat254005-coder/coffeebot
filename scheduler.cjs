@@ -79,57 +79,57 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
   const fileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
-  const prompt = isPromoTime 
+  const promptVideo = isPromoTime 
     ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงดูวีดีโอหรือรูปภาพนี้ แล้วแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
     : "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' จงดูวีดีโอหรือรูปภาพนี้ แล้วแต่งแคปชั่นสั้นๆ ให้ความรู้หรือบรรยายความน่ากินของเครื่องดื่ม หรือเล่นมุกตลก เพื่อสร้างปฏิสัมพันธ์กับลูกเพจ ใช้ภาษาเป็นกันเอง (ห้ามใส่แฮชแท็ก)";
+    
+  const promptTextOnly = isPromoTime 
+    ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็ก)" 
+    : "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' จงแต่งแคปชั่นสั้นๆ ให้ความรู้เกี่ยวกับกาแฟ เครื่องดื่ม หรือเล่นมุกตลก เพื่อสร้างปฏิสัมพันธ์กับลูกเพจ ใช้ภาษาเป็นกันเอง (ห้ามใส่แฮชแท็ก)";
 
   try {
     let result;
     if (isVideo) {
-      const fileSize = fs.statSync(filePath).size;
-      const MAX_GEMINI_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB safe limit for Render Free Tier RAM
+      try {
+        const fileSize = fs.statSync(filePath).size;
+        const MAX_GEMINI_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
 
-      if (fileSize < MAX_GEMINI_VIDEO_SIZE) {
-        // Upload full video
-        const uploadResponse = await fileManager.uploadFile(filePath, { mimeType: 'video/mp4', displayName: path.basename(filePath) });
-        let fileState = await fileManager.getFile(uploadResponse.file.name);
-        while (fileState.state === 'PROCESSING') {
-          await new Promise((r) => setTimeout(r, 5000));
-          fileState = await fileManager.getFile(uploadResponse.file.name);
+        if (fileSize < MAX_GEMINI_VIDEO_SIZE) {
+          const uploadResponse = await fileManager.uploadFile(filePath, { mimeType: 'video/mp4', displayName: path.basename(filePath) });
+          let fileState = await fileManager.getFile(uploadResponse.file.name);
+          while (fileState.state === 'PROCESSING') {
+            await new Promise((r) => setTimeout(r, 5000));
+            fileState = await fileManager.getFile(uploadResponse.file.name);
+          }
+          if (fileState.state === 'FAILED') throw new Error('Video processing failed.');
+          result = await model.generateContent([promptVideo, { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } }]);
+        } else {
+          const ffmpeg = require('fluent-ffmpeg');
+          const ffmpegStatic = require('ffmpeg-static');
+          try { fs.chmodSync(ffmpegStatic, '755'); } catch (e) {} // Ensure executable on Linux
+          ffmpeg.setFfmpegPath(ffmpegStatic);
+          
+          const framePath = path.join(__dirname, 'New', 'temp_frame_' + Date.now() + '.jpg');
+          await new Promise((resolve, reject) => {
+            ffmpeg(filePath).on('end', resolve).on('error', reject).screenshots({ timestamps: ['50%'], folder: path.dirname(framePath), filename: path.basename(framePath) });
+          });
+          result = await model.generateContent([promptVideo, { inlineData: { data: Buffer.from(fs.readFileSync(framePath)).toString("base64"), mimeType: 'image/jpeg' } }]);
+          if (fs.existsSync(framePath)) fs.unlinkSync(framePath);
         }
-        if (fileState.state === 'FAILED') throw new Error('Video processing failed.');
-        result = await model.generateContent([prompt, { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } }]);
-      } else {
-        // Fallback to frame extraction for huge videos
-        const ffmpeg = require('fluent-ffmpeg');
-        const ffmpegStatic = require('ffmpeg-static');
-        ffmpeg.setFfmpegPath(ffmpegStatic);
-        
-        const framePath = path.join(__dirname, 'New', 'temp_frame_' + Date.now() + '.jpg');
-        await new Promise((resolve, reject) => {
-          ffmpeg(filePath)
-            .on('end', resolve)
-            .on('error', reject)
-            .screenshots({
-              timestamps: ['50%'],
-              folder: path.dirname(framePath),
-              filename: path.basename(framePath)
-            });
-        });
-        
-        result = await model.generateContent([prompt, { inlineData: { data: Buffer.from(fs.readFileSync(framePath)).toString("base64"), mimeType: 'image/jpeg' } }]);
-        if (fs.existsSync(framePath)) fs.unlinkSync(framePath);
+      } catch (videoError) {
+        console.error('Failed to process video for AI, falling back to text-only prompt:', videoError.message);
+        result = await model.generateContent(promptTextOnly); // Fallback to text-only!
       }
     } else {
       const ext = path.extname(filePath).toLowerCase();
       let mimeType = 'image/jpeg';
       if (ext === '.png') mimeType = 'image/png';
       else if (ext === '.webp') mimeType = 'image/webp';
-      result = await model.generateContent([prompt, { inlineData: { data: Buffer.from(fs.readFileSync(filePath)).toString("base64"), mimeType: mimeType } }]);
+      result = await model.generateContent([promptVideo, { inlineData: { data: Buffer.from(fs.readFileSync(filePath)).toString("base64"), mimeType: mimeType } }]);
     }
     return result.response.text().trim();
   } catch (error) {
-    console.error('Error in AI:', error.message);
+    console.error('Fatal Error in AI:', error.message);
     return "เมนูเด็ดโดนใจคอกาแฟและสายชา! แวะมาเติมความอร่อยกันได้เลยครับ 🥤✨";
   }
 }
