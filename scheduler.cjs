@@ -189,16 +189,33 @@ async function processQueue() {
           const { video_id, upload_url } = startRes.data;
           
           // 2. Transfer binary data
-          const videoStream = fs.createReadStream(filePath);
-          await axios.post(upload_url, videoStream, {
+          const parsedUrl = new URL(upload_url);
+          const options = {
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            method: 'POST',
             headers: {
               'Authorization': `OAuth ${env.FACEBOOK_ACCESS_TOKEN}`,
               'offset': '0',
               'file_size': fileSize.toString(),
-              'Content-Type': 'application/octet-stream'
-            },
-            maxContentLength: Infinity, 
-            maxBodyLength: Infinity
+              'Content-Type': 'application/octet-stream',
+              'Content-Length': fileSize.toString()
+            }
+          };
+          
+          await new Promise((resolve, reject) => {
+            const https = require('https');
+            const req = https.request(options, (res) => {
+              let data = '';
+              res.on('data', chunk => data += chunk);
+              res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) resolve(data);
+                else reject(new Error("API ERROR " + res.statusCode + " " + data));
+              });
+            });
+            req.on('error', reject);
+            const stream = fs.createReadStream(filePath);
+            stream.pipe(req);
           });
           
           // 3. Finish and Schedule Reel
