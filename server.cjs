@@ -38,14 +38,23 @@ app.use(express.json());
 // Serve the 'New' directory so we can preview queued files
 app.use('/media', express.static(NEW_DIR));
 
+// PWA Files
+app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
+app.get('/sw.js', (req, res) => res.sendFile(path.join(__dirname, 'sw.js')));
+app.get('/icon.svg', (req, res) => res.sendFile(path.join(__dirname, 'icon.svg')));
+
 // Basic HTML UI for uploading
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html lang="th">
     <head>
-      <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
       <title>อัปโหลดรูป/วีดีโอบอท - กาแฟท้ายรถ</title>
+      <link rel="manifest" href="/manifest.json">
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-status-bar-style" content="black">
+      <link rel="apple-touch-icon" href="/icon.svg">
       <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
       <style>
         body { font-family: 'Prompt', sans-serif; background: linear-gradient(135deg, #1A110D 0%, #2C1A14 100%); color: #fff; padding: 20px; text-align: center; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
@@ -154,6 +163,14 @@ app.get('/', (req, res) => {
           
           window.location.href = '/processing?total=' + successCount;
         });
+
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js').then(reg => {
+              console.log('SW registered!', reg);
+            }).catch(err => console.log('SW error', err));
+          });
+        }
       </script>
     </body>
     </html>

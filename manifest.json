@@ -1,0 +1,16 @@
+{
+  "name": "CoffeeBot Admin",
+  "short_name": "CoffeeBot",
+  "description": "ระบบจัดการโพสต์ กาแฟสดท้ายรถ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a110d",
+  "theme_color": "#d4af37",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
