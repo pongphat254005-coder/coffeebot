@@ -129,8 +129,8 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
     }
     return result.response.text().trim();
   } catch (error) {
-    console.error('Fatal Error in AI:', error.message);
-    return "เมนูเด็ดโดนใจคอกาแฟและสายชา! แวะมาเติมความอร่อยกันได้เลยครับ 🥤✨";
+    console.error('Fatal Error in AI:', error.message, error.stack);
+    return "เกิดข้อผิดพลาดในการรัน AI: " + error.message;
   }
 }
 
