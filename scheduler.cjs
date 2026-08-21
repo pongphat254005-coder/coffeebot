@@ -78,15 +78,36 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
   const prompt = isPromoTime 
-    ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
-    : "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' จงแต่งแคปชั่นสั้นๆ ให้ความรู้เกี่ยวกับกาแฟ เครื่องดื่ม หรือมุกตลก เพื่อสร้างปฏิสัมพันธ์กับลูกเพจ ใช้ภาษาเป็นกันเอง (ห้ามใส่แฮชแท็ก)";
+    ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงดูรูปภาพหรือภาพจากวีดีโอนี้ แล้วแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มที่อยู่ในภาพก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
+    : "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' จงดูรูปภาพหรือภาพจากวีดีโอนี้ แล้วแต่งแคปชั่นสั้นๆ ให้ความรู้หรือบรรยายความน่ากินของเครื่องดื่มในภาพ หรือเล่นมุกตลก เพื่อสร้างปฏิสัมพันธ์กับลูกเพจ ใช้ภาษาเป็นกันเอง (ห้ามใส่แฮชแท็ก)";
 
   try {
     let result;
     if (isVideo) {
-      // To prevent Out-Of-Memory (OOM) crashes on Render's 512MB free tier,
-      // we skip uploading the heavy video file to Gemini and just ask for a caption.
-      result = await model.generateContent([prompt]);
+      // Extract 1 frame from the video using ffmpeg
+      const ffmpeg = require('fluent-ffmpeg');
+      const ffmpegStatic = require('ffmpeg-static');
+      ffmpeg.setFfmpegPath(ffmpegStatic);
+      
+      const framePath = path.join(__dirname, 'New', 'temp_frame_' + Date.now() + '.jpg');
+      
+      await new Promise((resolve, reject) => {
+        ffmpeg(filePath)
+          .on('end', resolve)
+          .on('error', reject)
+          .screenshots({
+            timestamps: ['50%'], // take a frame from the middle of the video
+            folder: path.dirname(framePath),
+            filename: path.basename(framePath)
+          });
+      });
+      
+      // Send the frame to Gemini
+      result = await model.generateContent([prompt, { inlineData: { data: Buffer.from(fs.readFileSync(framePath)).toString("base64"), mimeType: 'image/jpeg' } }]);
+      
+      // Cleanup frame
+      if (fs.existsSync(framePath)) fs.unlinkSync(framePath);
+      
     } else {
       const ext = path.extname(filePath).toLowerCase();
       let mimeType = 'image/jpeg';
