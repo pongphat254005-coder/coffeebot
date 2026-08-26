@@ -77,7 +77,7 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const { GoogleAIFileManager } = require('@google/generative-ai/server');
   const fileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
   const promptVideo = isPromoTime 
     ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงดูวีดีโอหรือรูปภาพนี้ แล้วแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
