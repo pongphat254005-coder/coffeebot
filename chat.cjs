@@ -215,10 +215,6 @@ function mount(app, upload) {
     
     try {
       const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
-      const model = genAI.getGenerativeModel({ 
-        model: 'gemini-2.5-flash',
-        systemInstruction: "คุณคือ AI ผู้ช่วยแอดมินเพจ 'กาแฟสดท้ายรถ เมืองตาก' ลูกค้าจะสั่งให้คุณเขียนโพสต์ หรือคุยกับคุณทั่วไป\\nหากเป็นคำสั่งให้โพสต์ลงเพจ ให้คุณคิดเนื้อหาแคปชั่นแบบเต็มๆ พร้อมใส่แฮชแท็กที่เกี่ยวข้องให้ครบถ้วนทันที โดยแต่งภาษาให้เป็นกันเอง ตลก สนุกสนาน ดึงดูดวัยรุ่นโรงงาน จากนั้นให้คืนค่า JSON: { \"action\": \"post\", \"message\": \"<แคปชั่นและแฮชแท็กที่คุณแต่ง>\" }\\nหากลูกค้าสั่งให้คุณ 'สร้างรูปภาพ' (Generate Image) ให้คุณตอบกลับไปว่าคุณไม่สามารถสร้างรูปภาพได้ ลูกค้าต้องเป็นคนอัปโหลดรูปภาพมาให้คุณเอง โดยคืนค่าเป็น JSON: { \"action\": \"reply\", \"message\": \"ขออภัยครับคุณลูกค้า ผมยังไม่สามารถสร้างรูปภาพให้ได้ครับ 😅 รบกวนคุณลูกค้าหารูปที่ต้องการแล้วกดปุ่ม 📎 แนบรูปมาให้ผมแทนนะครับ เดี๋ยวผมจะช่วยคิดแคปชั่นและโพสต์ให้ทันทีครับ!\" }\\nหากเป็นแค่การพูดคุยสอบถามทั่วไป ให้ตอบกลับปกติใน JSON: { \"action\": \"reply\", \"message\": \"<คำตอบของคุณ>\" }"
-      });
 
       let promptParts = [{ text: req.body.prompt }];
       let hasFile = false;
@@ -246,10 +242,29 @@ function mount(app, upload) {
         }
       }
 
-      const result = await model.generateContent({
-        contents: [{ role: 'user', parts: promptParts }],
-        generationConfig: { responseMimeType: "application/json" }
-      });
+      const modelsToTry = ['gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+      let result;
+      let lastError;
+
+      for (const modelName of modelsToTry) {
+        try {
+          const currentModel = genAI.getGenerativeModel({ 
+            model: modelName,
+            systemInstruction: "คุณคือ AI ผู้ช่วยแอดมินเพจ 'กาแฟสดท้ายรถ เมืองตาก' ลูกค้าจะสั่งให้คุณเขียนโพสต์ หรือคุยกับคุณทั่วไป\\nหากเป็นคำสั่งให้โพสต์ลงเพจ ให้คุณคิดเนื้อหาแคปชั่นแบบเต็มๆ พร้อมใส่แฮชแท็กที่เกี่ยวข้องให้ครบถ้วนทันที โดยแต่งภาษาให้เป็นกันเอง ตลก สนุกสนาน ดึงดูดวัยรุ่นโรงงาน จากนั้นให้คืนค่า JSON: { \"action\": \"post\", \"message\": \"<แคปชั่นและแฮชแท็กที่คุณแต่ง>\" }\\nหากลูกค้าสั่งให้คุณ 'สร้างรูปภาพ' (Generate Image) ให้คุณตอบกลับไปว่าคุณไม่สามารถสร้างรูปภาพได้ ลูกค้าต้องเป็นคนอัปโหลดรูปภาพมาให้คุณเอง โดยคืนค่าเป็น JSON: { \"action\": \"reply\", \"message\": \"ขออภัยครับคุณลูกค้า ผมยังไม่สามารถสร้างรูปภาพให้ได้ครับ 😅 รบกวนคุณลูกค้าหารูปที่ต้องการแล้วกดปุ่ม 📎 แนบรูปมาให้ผมแทนนะครับ เดี๋ยวผมจะช่วยคิดแคปชั่นและโพสต์ให้ทันทีครับ!\" }\\nหากเป็นแค่การพูดคุยสอบถามทั่วไป ให้ตอบกลับปกติใน JSON: { \"action\": \"reply\", \"message\": \"<คำตอบของคุณ>\" }"
+          });
+          result = await currentModel.generateContent({
+            contents: [{ role: 'user', parts: promptParts }],
+            generationConfig: { responseMimeType: "application/json" }
+          });
+          console.log(`Successfully generated with ${modelName}`);
+          break;
+        } catch (err) {
+          console.error(`Model ${modelName} failed:`, err.message);
+          lastError = err;
+        }
+      }
+      
+      if (!result) throw lastError;
 
       const responseText = result.response.text();
       let aiDecision;
