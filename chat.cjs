@@ -99,14 +99,14 @@ function mount(app, upload) {
         <link rel="apple-touch-icon" href="/icon.svg">
         <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
         <style>
-          body { font-family: 'Prompt', sans-serif; background: #1A110D; color: #fff; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+          body { font-family: 'Prompt', sans-serif; background: #1A110D; color: #fff; margin: 0; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
           .header { background: rgba(212, 175, 55, 0.1); padding: 15px; text-align: center; border-bottom: 1px solid rgba(212, 175, 55, 0.2); font-weight: bold; color: #D4AF37; }
           .header a { color: #A99A86; font-size: 12px; text-decoration: underline; display: block; margin-top: 5px; }
           .chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
           .message { max-width: 80%; padding: 12px 16px; border-radius: 15px; line-height: 1.5; font-size: 14px; word-wrap: break-word; }
           .msg-ai { background: rgba(255,255,255,0.1); align-self: flex-start; border-bottom-left-radius: 2px; }
           .msg-user { background: linear-gradient(90deg, #D4AF37, #C5A017); color: #1A110D; align-self: flex-end; border-bottom-right-radius: 2px; }
-          .input-area { background: #221712; padding: 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); }
+          .input-area { background: #221712; padding: 15px 15px 25px 15px; display: flex; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); }
           .file-btn { background: rgba(212, 175, 55, 0.2); border: none; color: #D4AF37; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
           .text-input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(212, 175, 55, 0.3); color: #fff; padding: 12px 15px; border-radius: 20px; font-family: 'Prompt', sans-serif; font-size: 14px; outline: none; }
           .send-btn { background: #D4AF37; color: #1A110D; border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; flex-shrink: 0; font-weight: bold; display: flex; justify-content: center; align-items: center; }
@@ -220,7 +220,7 @@ function mount(app, upload) {
         systemInstruction: "คุณคือ AI ผู้ช่วยแอดมินเพจ 'กาแฟสดท้ายรถ เมืองตาก' ลูกค้าจะสั่งให้คุณเขียนโพสต์ หรือคุยกับคุณทั่วไป\\nหากเป็นคำสั่งให้โพสต์ลงเพจ (แม้ลูกค้าจะให้มาแค่หัวข้อสั้นๆ) ให้คุณคิดเนื้อหาแคปชั่นแบบเต็มๆ พร้อมใส่แฮชแท็กที่เกี่ยวข้องให้ครบถ้วนทันที โดยแต่งภาษาให้เป็นกันเอง ตลก สนุกสนาน ดึงดูดวัยรุ่นโรงงาน จากนั้นให้คืนค่า JSON: { \"action\": \"post\", \"message\": \"<แคปชั่นและแฮชแท็กที่คุณแต่ง>\" }\\nหากเป็นแค่การพูดคุยสอบถามทั่วไป ให้ตอบกลับปกติใน JSON: { \"action\": \"reply\", \"message\": \"<คำตอบของคุณ>\" }"
       });
 
-      let promptParts = [req.body.prompt];
+      let promptParts = [{ text: req.body.prompt }];
       let hasFile = false;
       let isVideo = false;
 
