@@ -38,6 +38,9 @@ app.use(express.json());
 // Serve the 'New' directory so we can preview queued files
 app.use('/media', express.static(NEW_DIR));
 
+// Mount Chat Module
+require('./chat.cjs').mount(app, upload);
+
 // PWA Files
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, 'manifest.json')));
 app.get('/sw.js', (req, res) => res.sendFile(path.join(__dirname, 'sw.js')));
@@ -94,6 +97,7 @@ app.get('/', (req, res) => {
         <div id="progressText">อัปโหลด: 0%</div>
 
         <div style="margin-top: 20px; font-size: 14px; color: #D4AF37;">
+          <a href="/chat" style="color: #4cd137; text-decoration: none; cursor: pointer; display: block; margin-bottom: 15px; font-weight: bold; background: rgba(76, 209, 55, 0.1); border: 1px solid #4cd137; padding: 10px; border-radius: 10px;">💬 สั่ง AI โพสต์ด่วน (ระบบแชท)</a>
           <a href="/dashboard" style="color: #A99A86; text-decoration: underline; cursor: pointer;">📋 เข้าไปดูคิวโพสต์ที่ตั้งเวลาไว้แล้ว</a>
         </div>
 
