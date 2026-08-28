@@ -79,7 +79,23 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
   const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY);
   const { GoogleAIFileManager } = require('@google/generative-ai/server');
   const fileManager = new GoogleAIFileManager(env.GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  async function generateWithFallback(genAI, parts) {
+    const modelsToTry = ['gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite'];
+    let lastError;
+    for (const modelName of modelsToTry) {
+      try {
+        const currentModel = genAI.getGenerativeModel({ model: modelName });
+        const res = await currentModel.generateContent(parts);
+        console.log(`Successfully generated scheduled post with ${modelName}`);
+        return res;
+      } catch (err) {
+        console.error(`Model ${modelName} failed in scheduler:`, err.message);
+        lastError = err;
+        await new Promise(r => setTimeout(r, 2000)); // wait 2s before retry
+      }
+    }
+    throw lastError;
+  }
 
   const promptVideo = isPromoTime 
     ? "คุณคือแอดมินเพจเฟซบุ๊ก 'กาแฟสดท้ายรถ เมืองตาก' สาขาหน้าวัดบางวัว จงดูวีดีโอหรือรูปภาพนี้ แล้วแต่งแคปชั่นสั้นๆ 2-3 บรรทัดให้ดึงดูดใจวัยรุ่นหนุ่มสาวโรงงานเพื่อชวนให้มาซื้อกาแฟหรือเครื่องดื่มก่อนเข้ากะตอนเช้า ใช้ภาษาเป็นกันเอง ตลก สนุกสนาน มีอีโมจิ (ห้ามใส่แฮชแท็กเพราะจะมีระบบใส่ให้อัตโนมัติ)" 
@@ -104,7 +120,7 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
             fileState = await fileManager.getFile(uploadResponse.file.name);
           }
           if (fileState.state === 'FAILED') throw new Error('Video processing failed.');
-          result = await model.generateContent([promptVideo, { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } }]);
+          result = await generateWithFallback(genAI, [promptVideo, { fileData: { mimeType: uploadResponse.file.mimeType, fileUri: uploadResponse.file.uri } }]);
         } else {
           const ffmpeg = require('fluent-ffmpeg');
           const ffmpegStatic = require('ffmpeg-static');
@@ -115,19 +131,19 @@ async function generateAICaption(filePath, isVideo, isPromoTime) {
           await new Promise((resolve, reject) => {
             ffmpeg(filePath).on('end', resolve).on('error', reject).screenshots({ timestamps: ['50%'], folder: path.dirname(framePath), filename: path.basename(framePath) });
           });
-          result = await model.generateContent([promptVideo, { inlineData: { data: Buffer.from(fs.readFileSync(framePath)).toString("base64"), mimeType: 'image/jpeg' } }]);
+          result = await generateWithFallback(genAI, [promptVideo, { inlineData: { data: Buffer.from(fs.readFileSync(framePath)).toString("base64"), mimeType: 'image/jpeg' } }]);
           if (fs.existsSync(framePath)) fs.unlinkSync(framePath);
         }
       } catch (videoError) {
         console.error('Failed to process video for AI, falling back to text-only prompt:', videoError.message);
-        result = await model.generateContent(promptTextOnly); // Fallback to text-only!
+        result = await generateWithFallback(genAI, promptTextOnly); // Fallback to text-only!
       }
     } else {
       const ext = path.extname(filePath).toLowerCase();
       let mimeType = 'image/jpeg';
       if (ext === '.png') mimeType = 'image/png';
       else if (ext === '.webp') mimeType = 'image/webp';
-      result = await model.generateContent([promptVideo, { inlineData: { data: Buffer.from(fs.readFileSync(filePath)).toString("base64"), mimeType: mimeType } }]);
+      result = await generateWithFallback(genAI, [promptVideo, { inlineData: { data: Buffer.from(fs.readFileSync(filePath)).toString("base64"), mimeType: mimeType } }]);
     }
     return result.response.text().trim();
   } catch (error) {
@@ -251,6 +267,10 @@ async function processQueue() {
         if (!fs.existsSync(FAILED_DIR)) fs.mkdirSync(FAILED_DIR);
         fs.renameSync(filePath, path.join(FAILED_DIR, targetFile));
       }
+      
+      // Delay between processing files to respect rate limit API (max 15 RPM)
+      console.log('Waiting 6 seconds before processing the next file in queue...');
+      await new Promise(r => setTimeout(r, 6000));
     }
   } finally {
     isProcessing = false;
