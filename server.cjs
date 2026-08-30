@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 const { processQueue } = require('./scheduler.cjs');
+require('./cron_posts.cjs').startCronJobs();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
